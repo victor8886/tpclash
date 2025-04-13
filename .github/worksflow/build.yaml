@@ -1,0 +1,62 @@
+name: TPClash
+
+on:
+  workflow_dispatch:
+    inputs:
+      trigger:
+        description: Manually trigger
+        required: true
+        type: choice
+        options:
+          - build
+
+env:
+  FORCE_COLOR: 1
+  CGO_ENABLED: 0
+  DOCKERHUB_USERNAME: ${{ secrets.DOCKERHUB_USERNAME }}
+  DOCKERHUB_PASSWORD: ${{ secrets.DOCKERHUB_PASSWORD }}
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v3
+    - name: Put back the git branch into git
+      shell: bash
+      run: |
+        branch=""
+        if [ -n "$GITHUB_HEAD_REF" ]; then
+          branch="$GITHUB_HEAD_REF"
+        else
+          branch="${GITHUB_REF##*/}"
+        fi
+        git checkout -b "$branch" || true
+    - name: Docker Login
+      shell: bash
+      run: docker login --username "${DOCKERHUB_USERNAME}" --password "${DOCKERHUB_PASSWORD}"
+    - name: Use Node.js
+      uses: actions/setup-node@v3
+      with:
+        node-version: '20.x'
+    - name: Use Golang
+      uses: actions/setup-go@v4
+      with:
+        go-version: 'stable'
+    - name: Install Deps
+      shell: bash
+      run: |
+        npm install -g pnpm @go-task/cli
+    - name: Build TPClash
+      shell: bash
+      run: task
+    - name: Get current date
+      id: timestamp
+      run: |
+        export TZ='Asia/Shanghai'
+        echo "date=$(date '+%Y-%m-%d-%H-%M-%S')" >> $GITHUB_OUTPUT
+    - name: Upload artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: tpclash-${{ steps.timestamp.outputs.date }}
+        path: build 
